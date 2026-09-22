@@ -40,12 +40,30 @@ browser never sees it.
 | `npm run build`   | Production build into `dist/`                       |
 | `npm run preview` | Serves the build locally (proxy and key still work) |
 
-## Deploying
+## Deploying (Cloudflare Pages)
 
-The proxy only exists in the Vite dev and preview servers. A static host serving `dist/`
-has no proxy, so to deploy you need a small server-side function that forwards
-`/api/openrouter/*` to `https://openrouter.ai/api/v1/*` with the key attached
-(a Vercel or Netlify function, a Cloudflare Worker, or a tiny Express server all work).
+The proxy only exists in the Vite dev and preview servers — a static host
+serving `dist/` has no proxy, so `functions/api/openrouter/[[path]].js` is a
+**Cloudflare Pages Function** that does the same job in production: it runs
+on Cloudflare's edge, reads `OPENROUTER_API_KEY` from the Pages project's
+environment variables, and forwards `/api/openrouter/*` to
+`https://openrouter.ai/api/v1/*` with the key attached server-side. The
+browser never sees it, same guarantee as the dev proxy.
+
+Setup:
+1. Cloudflare dashboard → your Pages project → **Settings → Environment
+   variables** → add `OPENROUTER_API_KEY` as a **Secret**, with your real key
+   as the value. Do this for both **Production** and **Preview** if you want
+   preview deployments to work too.
+2. That's it — `functions/` is picked up automatically on the next deploy, no
+   build settings to change. Framework preset (React/Vite) only affects the
+   `npm run build` step; Functions are a separate mechanism layered on top of
+   whatever static build you're already using.
+
+Deploying somewhere other than Cloudflare Pages (Vercel, Netlify, a plain
+Express server)? The same idea applies — a small server-side function that
+forwards `/api/openrouter/*` with the key attached — just written for that
+platform's own function format instead of `functions/api/openrouter/[[path]].js`.
 Never put the key in client-side code.
 
 ## Notes
