@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import DownloadAppCard from './DownloadAppCard'
 
 function extractText(node) {
   if (typeof node === 'string') return node
@@ -59,12 +60,15 @@ export default function Message({ message, pending, canRetry, onRetry }) {
           </ReactMarkdown>
         </div>
       ) : (
-        pending && (
+        pending &&
+        !message.build && (
           <div className="typing" role="status" aria-label="The model is responding">
             <span /><span /><span />
           </div>
         )
       )}
+
+      {message.build && <DownloadAppCard build={message.build} />}
 
       {message.content && !pending && (
         <div className="msg-actions">

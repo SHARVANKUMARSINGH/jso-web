@@ -24,9 +24,17 @@ export default defineConfig(({ mode }) => {
     },
   }
 
+  const headers = {
+    // Required for WebContainer's SharedArrayBuffer, used by the "Build App"
+    // mode's in-browser npm install/dev-server run — matches public/_headers,
+    // which covers the same requirement on the Cloudflare Pages deployment.
+    "Cross-Origin-Embedder-Policy": "require-corp",
+    "Cross-Origin-Opener-Policy": "same-origin",
+  };
+
   return {
     plugins: [react()],
-    server: { proxy },
-    preview: { proxy },
+    server: { proxy, headers },
+    preview: { proxy, headers },
   }
 })

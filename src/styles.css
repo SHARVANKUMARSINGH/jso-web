@@ -388,6 +388,62 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
   40% { opacity: 1; transform: scale(1); }
 }
 
+/* ---------- Build App card ---------- */
+.build-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.build-icon { flex-shrink: 0; display: grid; place-items: center; color: var(--ink-soft); }
+.build-ready .build-icon { color: var(--accent); }
+.build-error .build-icon { color: var(--danger); }
+.build-title { margin: 0; font-weight: 600; font-size: 0.92rem; }
+.build-sub { margin: 2px 0 0; font-size: 0.85rem; color: var(--ink-soft); }
+.build-error .build-sub { color: var(--danger); }
+.build-info { flex: 1; min-width: 0; }
+.build-spin svg { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.download-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 500;
+  font-size: 0.88rem;
+}
+.download-btn:hover { filter: brightness(1.08); }
+
+/* ---------- Build App toggle (Composer) ---------- */
+.build-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: transparent;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+}
+.build-toggle:hover { border-color: var(--accent); }
+.build-toggle.active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--ink);
+}
+
 /* ---------- Error + composer ---------- */
 .error {
   display: flex;
@@ -411,6 +467,12 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
   color: inherit;
 }
 .error button:hover { background: color-mix(in srgb, currentColor 12%, transparent); }
+
+.composer-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
 
 .composer {
   display: flex;

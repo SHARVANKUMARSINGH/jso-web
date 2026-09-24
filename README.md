@@ -66,6 +66,34 @@ forwards `/api/openrouter/*` with the key attached — just written for that
 platform's own function format instead of `functions/api/openrouter/[[path]].js`.
 Never put the key in client-side code.
 
+## Build App mode
+
+A toggle in the composer ("Build App") switches a send from FreeChat's
+normal plain-text reply into a different pipeline: the model returns a
+complete project as a strict JSON action list (`write_file`, `delete_file`,
+`run_command`, `summary` — see `src/lib/appBuilder.js`) instead of prose.
+That gets mounted into a **hidden WebContainer** instance
+(`src/lib/webcontainerManager.js`) which runs `npm install` then
+`npm run build` in the background — no terminal UI is ever shown; the point
+is the user never sees or interacts with it, only the outcome. Once that
+succeeds, the chat message shows a card (`DownloadAppCard.jsx`) with a
+**Download .zip** button that bundles the generated files client-side
+(`src/lib/downloadZip.js`, via `jszip`) straight to the device — no server
+storage involved.
+
+This needs the same cross-origin isolation headers WebContainer always
+needs: `public/_headers` (Cloudflare Pages) and the dev-server headers added
+in `vite.config.js` both set `Cross-Origin-Embedder-Policy: require-corp`
+and `Cross-Origin-Opener-Policy: same-origin` — without these,
+`SharedArrayBuffer` isn't available and the in-browser install/build fails.
+
+If `npm install`/`npm run build` fails (or runs past 3 minutes and gets
+killed), the card shows the error instead of a broken zip — a build is only
+ever offered once it's actually installed and compiled successfully.
+
+Normal chat (toggle off) is completely unaffected — same plain
+`streamChat()` path as before.
+
 ## Notes
 
 - Free models are rate limited and can be slow or briefly unavailable. Pick another

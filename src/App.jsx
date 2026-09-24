@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { fetchFreeModels, streamChat } from './api'
+import { generateApp } from './lib/appBuilder'
+import { bootWebContainer, buildProject, runCommands } from './lib/webcontainerManager'
 import Sidebar from './components/Sidebar'
 import ModelPicker from './components/ModelPicker'
 import Message from './components/Message'
@@ -43,10 +45,16 @@ export default function App() {
   const [streaming, setStreaming] = useState(false)
   const [error, setError] = useState('')
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [buildMode, setBuildMode] = useState(false)
 
   const abortRef = useRef(null)
   const scrollRef = useRef(null)
   const stickToBottom = useRef(true)
+  // Booted lazily on the first "Build App" send, then reused — WebContainer
+  // only allows one instance per page. Nothing about this is ever shown to
+  // the user: no terminal tab, no preview iframe, just the eventual
+  // Download-as-zip card once a build finishes.
+  const containerRef = useRef(null)
 
   const active = chats.find((c) => c.id === activeId) ?? null
   const messages = active?.messages ?? []
@@ -128,10 +136,54 @@ export default function App() {
     }
   }
 
+  async function runBuild(chatId, botId, prompt) {
+    const controller = new AbortController()
+    abortRef.current = controller
+    setStreaming(true)
+    stickToBottom.current = true
+
+    const patchBuild = (patch) =>
+      patchChat(chatId, (c) => ({
+        ...c,
+        messages: c.messages.map((m) => (m.id === botId ? { ...m, build: { ...m.build, ...patch } } : m)),
+      }))
+
+    try {
+      patchBuild({ status: 'generating', since: Date.now() })
+      const { actions, summary } = await generateApp({ model, prompt, signal: controller.signal })
+
+      const files = actions.filter((a) => a.type === 'write_file').map((a) => ({ path: a.path, contents: a.contents }))
+      if (files.length === 0) throw new Error('The model did not write any files')
+      const commands = actions.filter((a) => a.type === 'run_command').map((a) => a.command)
+
+      patchBuild({ status: 'installing', since: Date.now() })
+      const container = containerRef.current ?? (containerRef.current = await bootWebContainer())
+      if (commands.length > 0) await runCommands(container, commands)
+      await buildProject(container, files)
+
+      patchChat(chatId, (c) => ({
+        ...c,
+        messages: c.messages.map((m) =>
+          m.id === botId ? { ...m, content: summary, build: { status: 'ready', files, projectName: c.title } } : m,
+        ),
+      }))
+    } catch (e) {
+      if (e.name !== 'AbortError') {
+        setError(e.message)
+        patchBuild({ status: 'error', error: e.message })
+      }
+    } finally {
+      abortRef.current = null
+      setStreaming(false)
+    }
+  }
+
   async function send(text) {
     setError('')
     const userMsg = { id: uid(), role: 'user', content: text }
-    const botMsg = { id: uid(), role: 'assistant', content: '', model }
+    const botMsg = buildMode
+      ? { id: uid(), role: 'assistant', content: '', model, build: { status: 'generating', since: Date.now() } }
+      : { id: uid(), role: 'assistant', content: '', model }
 
     let chatId = active?.id
     let history
@@ -154,18 +206,30 @@ export default function App() {
         updatedAt: Date.now(),
       }))
     }
-    await run(chatId, botMsg.id, history)
+    if (buildMode) {
+      await runBuild(chatId, botMsg.id, text)
+    } else {
+      await run(chatId, botMsg.id, history)
+    }
   }
 
   function retry() {
     if (!active || streaming) return
     setError('')
     const kept = [...active.messages]
-    if (kept.at(-1)?.role === 'assistant') kept.pop()
+    const removed = kept.at(-1)?.role === 'assistant' ? kept.pop() : null
     if (kept.length === 0) return
-    const botMsg = { id: uid(), role: 'assistant', content: '', model }
+    const wasBuild = Boolean(removed?.build)
+    const botMsg = wasBuild
+      ? { id: uid(), role: 'assistant', content: '', model, build: { status: 'generating', since: Date.now() } }
+      : { id: uid(), role: 'assistant', content: '', model }
     patchChat(active.id, (c) => ({ ...c, messages: [...kept, botMsg] }))
-    run(active.id, botMsg.id, kept)
+    if (wasBuild) {
+      const lastUserMsg = [...kept].reverse().find((m) => m.role === 'user')
+      runBuild(active.id, botMsg.id, lastUserMsg?.content ?? '')
+    } else {
+      run(active.id, botMsg.id, kept)
+    }
   }
 
   const stop = () => abortRef.current?.abort()
@@ -273,6 +337,8 @@ export default function App() {
             onStop={stop}
             streaming={streaming}
             disabled={!model}
+            buildMode={buildMode}
+            onToggleBuildMode={() => setBuildMode((v) => !v)}
           />
         </div>
       </main>
